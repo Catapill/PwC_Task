@@ -1,0 +1,246 @@
+BASIC_QUERIES:
+    - >
+        SELECT
+            MAX(Trips) AS Max_Trips_For_Bike
+        FROM (
+        SELECT
+            Bike_ID,
+            COUNT(Rental_ID) AS Trips
+        FROM
+            trips
+        GROUP BY   
+            Bike_ID
+        );
+    - >
+        SELECT
+            COUNT(DISTINCT Station_ID) AS Stations
+        FROM   
+            stations;
+    - >
+        SELECT 
+            AVG(Duration_ms)/60000 AS Avg_Duration
+        FROM
+            trips;
+    - >
+        SELECT
+            AVG(Total_Duration) AS Avg_Bike_Total_Duration_Mins
+        FROM (
+            SELECT 
+                trips.Bike_ID,
+                SUM(Duration_ms)/60000 AS Total_Duration
+            FROM
+                trips
+                INNER JOIN bikes ON bikes.Bike_ID = trips.Bike_ID
+            GROUP BY   
+                trips.Bike_ID
+            ) BikeData
+    - >
+        SELECT
+            AVG(Days_Since_First_Trip) AS Avg_Bike_Days_Since_First_Trip
+        FROM (
+            SELECT 
+                trips.Bike_ID,
+                (unixepoch(DATE('now')) - unixepoch(Start_Date))/86400 AS Days_Since_First_Trip
+            FROM
+                trips
+                INNER JOIN bikes ON bikes.Bike_ID = trips.Bike_ID
+            GROUP BY   
+                trips.Bike_ID
+            ) BikeData
+GRAPHIC_QUERIES:
+    - >
+        SELECT 
+            Station_Name,
+            COUNT(Rental_ID) AS Total_Trips
+        FROM 
+            trips
+            LEFT JOIN stations ON stations.Station_ID = trips.Start_Station_ID
+        GROUP BY 
+            Station_Name
+        ORDER BY 
+            Total_Trips DESC
+        LIMIT 10;
+    - >
+        SELECT 
+            Station_Name_1,
+            COUNT(Rental_ID) AS Total_Trips
+        FROM 
+            trips
+            LEFT JOIN stations ON stations.Station_ID = trips.Start_Station_ID
+        GROUP BY 
+            Station_Name_1
+        ORDER BY 
+            Total_Trips DESC
+        LIMIT 10;
+    - >
+        SELECT 
+            Station_Name_2,
+            COUNT(Rental_ID) AS Total_Trips
+        FROM 
+            trips
+            LEFT JOIN stations ON stations.Station_ID = trips.Start_Station_ID
+        GROUP BY 
+            Station_Name_2
+        ORDER BY 
+            Total_Trips DESC
+        LIMIT 10;
+    - >
+        SELECT 
+            strftime('%H', Start_Date) AS Hour_Of_Day,
+            COUNT(*) AS Total_Trips
+        FROM 
+            trips
+        GROUP BY 
+            strftime('%H', Start_Date)
+        ORDER BY 
+            Hour_Of_Day;
+    - >
+        SELECT 
+            strftime('%H', Start_Date) AS Hour_Of_Day,
+            AVG(Duration_ms)/60000 AS Avg_Duration_mins
+        FROM 
+            trips
+        GROUP BY 
+            strftime('%H', Start_Date)
+        ORDER BY 
+            Hour_Of_Day;
+    - >
+        SELECT 
+            strftime('%m', Start_Date) AS Month_Of_Trip,
+            COUNT(*) AS Total_Trips
+        FROM 
+            trips
+        GROUP BY 
+            strftime('%m', Start_Date)
+        ORDER BY 
+            Month_Of_Trip;
+    - >
+        SELECT 
+            strftime('%w', Start_Date) + 1 AS Day_Of_Week,
+            COUNT(*) AS Total_Trips
+        FROM 
+            trips
+        GROUP BY 
+            strftime('%w', Start_Date)
+        ORDER BY 
+            Day_Of_Week;
+    - >
+        SELECT 
+            strftime('%Y-%m-%d', Start_Date) AS Trip_Date,
+            COUNT(*) AS Total_Trips
+        FROM 
+            trips
+        GROUP BY 
+            strftime('%Y-%m-%d', Start_Date)
+        ORDER BY 
+            Trip_Date;
+    - >
+        WITH daily_trip AS (
+            SELECT 
+                strftime('%Y-%m-%d', Start_Date) AS Day_Of_Trip,
+                COUNT(*) AS Total_Trips
+            FROM 
+                trips
+            GROUP BY 
+                strftime('%Y-%m-%d', Start_Date)
+        ),
+        average_trip_counts AS (
+            SELECT 
+                Day_Of_Trip,
+                AVG(Total_Trips) AS Avg_Trips
+            FROM 
+                daily_trip
+            GROUP BY 
+                Day_Of_Trip
+        )
+        SELECT 
+            current.Day_Of_Trip AS Unusual_Days,
+            current.Total_Trips AS Trips_On_Unusual_Day,
+            AVG(previous.Total_Trips) AS Previous_Week_Avg_Trips,
+            AVG(next.Total_Trips) AS Next_Week_Avg_Trips
+        FROM 
+            daily_trip AS current
+        JOIN 
+            average_trip_counts AS current_avg ON current.Day_Of_Trip = current_avg.Day_Of_Trip
+        LEFT JOIN 
+            daily_trip AS previous ON strftime('%s', current.Day_Of_Trip) - strftime('%s', previous.Day_Of_Trip) = -604800
+        LEFT JOIN 
+            daily_trip AS next ON strftime('%s', next.Day_Of_Trip) - strftime('%s', current.Day_Of_Trip) = 604800
+        GROUP BY 
+            current.Day_Of_Trip
+        HAVING 
+            current.Total_Trips > (Previous_Week_Avg_Trips * 2) AND current.Total_Trips > (Next_Week_Avg_Trips * 2)
+        ORDER BY 
+            current.Day_Of_Trip;
+    - >
+        WITH start_counts AS (
+            SELECT 
+                Station_ID,
+                COUNT(*) AS Start_Count
+            FROM 
+                trips
+                INNER JOIN stations ON stations.Station_ID = trips.Start_Station_ID
+            GROUP BY 
+                Station_ID
+        ),
+        end_counts AS (
+            SELECT 
+                Station_ID,
+                COUNT(*) AS End_Count
+            FROM 
+                trips
+                INNER JOIN stations ON stations.Station_ID = trips.End_Station_ID
+            GROUP BY 
+                Station_ID
+        )
+        SELECT 
+            Station_Name,
+            SUM(start_counts.Start_Count) * 1.0 / SUM(end_counts.End_Count) AS Start_End_Ratio
+        FROM 
+            stations
+            LEFT JOIN start_counts ON start_counts.Station_ID = stations.Station_ID
+            LEFT JOIN end_counts ON end_counts.Station_ID = stations.Station_ID
+        WHERE
+            start_counts.Start_Count > 100
+        GROUP BY   
+            Station_Name
+        ORDER BY 
+            Start_End_Ratio DESC
+        LIMIT 10;
+    - >
+        WITH start_counts AS (
+            SELECT 
+                Station_ID,
+                COUNT(*) AS Start_Count
+            FROM 
+                trips
+                INNER JOIN stations ON stations.Station_ID = trips.Start_Station_ID
+            GROUP BY 
+                Station_ID
+        ),
+        end_counts AS (
+            SELECT 
+                Station_ID,
+                COUNT(*) AS End_Count
+            FROM 
+                trips
+                INNER JOIN stations ON stations.Station_ID = trips.End_Station_ID
+            GROUP BY 
+                Station_ID
+        )
+        SELECT 
+            Station_Name,
+            SUM(start_counts.Start_Count) * 1.0 / SUM(end_counts.End_Count) AS Start_End_Ratio
+        FROM 
+            stations
+            LEFT JOIN start_counts ON start_counts.Station_ID = stations.Station_ID
+            LEFT JOIN end_counts ON end_counts.Station_ID = stations.Station_ID
+        WHERE
+            start_counts.Start_Count > 100
+        GROUP BY   
+            Station_Name
+        ORDER BY 
+            Start_End_Ratio ASC
+        LIMIT 10;
+        
+        

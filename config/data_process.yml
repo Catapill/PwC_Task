@@ -1,0 +1,27 @@
+SAMPLE_FRAC: 0.05
+DATE_PROCESSING: >
+    SELECT 
+        Rental_ID,
+        Bike_ID,
+        Start_Station_ID,
+        End_Station_ID,
+        strftime('%Y-%m-%d %H:%M',
+        CASE 
+            WHEN Start_Date LIKE '%-%' THEN Start_Date
+            ELSE substr(Start_Date,7,4) || '-' || substr(Start_Date,4,2) || '-' || substr(Start_Date,1,2) || substr(Start_Date,11,6) 
+        END) AS Start_Date,
+        strftime('%Y-%m-%d %H:%M',
+        CASE 
+            WHEN End_Date LIKE '%-%' THEN End_Date
+            ELSE substr(End_Date,7,4) || '-' || substr(End_Date,4,2) || '-' || substr(End_Date,1,2) || substr(End_Date,11,6) 
+        END) AS End_Date,
+        Duration_ms
+    FROM 
+        trips;
+STATION_PROCESSING: >
+    SELECT 
+        Station_ID,
+        Station_Name
+    FROM 
+        stations;
+        

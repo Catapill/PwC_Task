@@ -1,0 +1,100 @@
+EPSILON: 0.8
+SAMPLES: 2
+DATA_GATHER: >
+    SELECT 
+        bikes.Bike_ID,
+        ifnull(Total_Trips, 0) AS Total_Trips,
+        ifnull(Days_Since_First_Trip, 0) AS Days_Since_First_Trip,
+        ifnull(Days_Since_Last_Trip, 0) AS Days_Since_Last_Trip,
+        ifnull(Unusual_Trips, 0) AS Unusual_Trips,
+        ifnull(Unusual_Trips * 1.0 / Total_Trips, 0) AS Unusual_Trip_Ratio,
+        ifnull(DailyTrips.Trips, 0) AS Average_Daily_Trips,
+        ifnull(MonthlyTrips.Trips, 0) AS Average_Monthly_Trips,
+        ifnull(Avg_Trip_Duration, 0) AS Average_Trip_Duration,
+        ifnull(Avg_Recent_Trip_Duration - Avg_Trip_Duration, 0) AS Recent_Average_Trip_Duration_Change
+    FROM   
+        bikes
+        
+        LEFT JOIN (
+        SELECT
+            Bike_ID,
+            AVG(DailyTrips.Trips) AS Trips
+        FROM (
+            SELECT
+                Bike_ID,
+                strftime('%Y-%m-%d', Start_Date) AS Trip_Day,
+                COUNT(Rental_ID) AS Trips
+            FROM
+                trips
+            GROUP BY
+                Bike_ID,
+                strftime('%Y-%m-%d', Start_Date)
+            ) DailyTrips
+        GROUP BY
+            Bike_ID
+        ) DailyTrips ON DailyTrips.Bike_ID = bikes.Bike_ID
+        
+        LEFT JOIN (
+        SELECT
+            Bike_ID,
+            AVG(MonthlyTrips.Trips) AS Trips
+        FROM (
+        SELECT
+            Bike_ID,
+            strftime('%Y-%m', Start_Date) AS Trip_Month,
+            COUNT(Rental_ID) AS Trips
+        FROM
+            trips
+        GROUP BY
+            Bike_ID,
+            strftime('%Y-%m', Start_Date)
+            ) MonthlyTrips 
+        GROUP BY
+            Bike_ID
+        ) MonthlyTrips ON MonthlyTrips.Bike_ID = bikes.Bike_ID
+        
+        LEFT JOIN (
+        SELECT
+            Bike_ID,
+            COUNT(Rental_ID) AS Total_Trips,
+            SUM(CASE WHEN Duration_ms < 300000 THEN 1 ELSE 0 END) AS Unusual_Trips
+        FROM
+            trips
+        GROUP BY   
+            Bike_ID
+        ) BikeTrips ON BikeTrips.Bike_ID = bikes.Bike_ID
+        
+        LEFT JOIN (
+        SELECT
+            Bike_ID,
+            AVG(Duration_ms)/60000 AS Avg_Trip_Duration
+        FROM
+            trips
+        WHERE
+            Duration_ms > 0
+        GROUP BY   
+            Bike_ID
+        ) BikeDuration ON BikeDuration.Bike_ID = bikes.Bike_ID
+        
+        LEFT JOIN (
+        SELECT
+            Bike_ID,
+            AVG(Duration_ms)/60000 AS Avg_Recent_Trip_Duration
+        FROM
+            trips
+        WHERE
+            DATE(Start_Date) >= '2023-01-01'
+        GROUP BY   
+            Bike_ID
+        ) RecentDuration ON RecentDuration.Bike_ID = bikes.Bike_ID
+        
+        LEFT JOIN (
+        SELECT
+            Bike_ID,
+            (unixepoch(DATE('2024-01-01')) - unixepoch(MIN(Start_Date)))/86400 AS Days_Since_First_Trip,
+            (unixepoch(DATE('2024-01-01')) - unixepoch(MAX(Start_Date)))/86400 AS Days_Since_Last_Trip
+        FROM
+            trips
+        GROUP BY   
+            Bike_ID
+        ) BikeTripTime ON BikeTripTime.Bike_ID = bikes.Bike_ID;

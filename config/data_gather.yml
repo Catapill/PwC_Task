@@ -1,0 +1,4 @@
+SOURCE: "webpage.html"
+SAVE_PATH: "downloads"
+REQUIREMENTS_ALL: "JourneyDataExtract"
+REQUIREMENTS_ANY: ["2021", "2022", "2023"]
